@@ -154,30 +154,34 @@ func (n *Node) findInNode(key []byte) (bool, int) {
 	return false, len(n.items)
 }
 
-func (n *Node) findKey(key []byte) (int, *Node, error) {
-	i, node, err := n.findKeyHelper(n, key)
+func (n *Node) findKey(key []byte, exact bool) (int, *Node, []int, error) {
+	ancestorsIndexes := []int{0} // index of root
+	index, node, err := findKeyHelper(n, key, exact, &ancestorsIndexes)
 	if err != nil {
-		return -1, nil, err
+		return -1, nil, nil, err
 	}
-	return i, node, nil
+	return index, node, ancestorsIndexes, nil
 }
 
-func (n *Node) findKeyHelper(node *Node, key []byte) (int, *Node, error) {
-	found, i := node.findInNode(key)
-	//base condition 1
-	if found {
-		return i, node, nil
+func findKeyHelper(node *Node, key []byte, exact bool, ancestorsIndexes *[]int) (int, *Node, error) {
+	wasFound, index := node.findInNode(key)
+	if wasFound {
+		return index, node, nil
 	}
-	//base condition 2
+
 	if node.isLeaf() {
-		return -1, nil, nil
+		if exact {
+			return -1, nil, nil
+		}
+		return index, node, nil
 	}
-	//recurrence
-	child, err := node.getNode(n.childNodes[i])
+
+	*ancestorsIndexes = append(*ancestorsIndexes, index)
+	nextChild, err := node.getNode(node.childNodes[index])
 	if err != nil {
 		return -1, nil, err
 	}
-	return n.findKeyHelper(child, key)
+	return findKeyHelper(nextChild, key, exact, ancestorsIndexes)
 }
 
 // elementSize returns the size of a key-value-childNode triplet at a given index.
@@ -223,4 +227,29 @@ func (n *Node) isOverPopulated() bool {
 // isUnderPopulated checks if the node size is smaller than the size of a page.
 func (n *Node) isUnderPopulated() bool {
 	return n.dal.isUnderPopulated(n)
+}
+
+func (n *Node) split(nodeToSplit *Node, nodeToSplitIndex int) {
+	splitIndex := nodeToSplit.dal.getSplitIndex(nodeToSplit)
+	midItem := nodeToSplit.items[splitIndex]
+	var newNode *Node
+
+	if nodeToSplit.isLeaf() {
+		newNode = n.writeNode(n.dal.newNode(nodeToSplit.items[splitIndex+1:], []pgnum{}))
+		nodeToSplit.items = nodeToSplit.items[:splitIndex]
+	} else {
+		newNode = n.writeNode(n.dal.newNode(nodeToSplit.items[splitIndex+1:], newNode.childNodes[splitIndex+1:]))
+		nodeToSplit.items = nodeToSplit.items[:splitIndex]
+		nodeToSplit.childNodes = nodeToSplit.childNodes[:splitIndex+1]
+	}
+	//add the split mid to the parent
+	n.addItem(midItem, nodeToSplitIndex)
+	if len(n.childNodes) == nodeToSplitIndex+1 { // If middle of list, then move items forward
+		n.childNodes = append(n.childNodes, newNode.pageNum)
+	} else {
+		n.childNodes = append(n.childNodes[:nodeToSplitIndex+1], n.childNodes[nodeToSplitIndex:]...)
+		n.childNodes[nodeToSplitIndex+1] = newNode.pageNum
+	}
+
+	n.writeNodes(n, nodeToSplit)
 }

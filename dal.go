@@ -215,3 +215,25 @@ func (d *dal) minThreshold() float32 {
 func (d *dal) isUnderPopulated(node *Node) bool {
 	return float32(node.nodeSize()) < d.minThreshold()
 }
+
+func (d *dal) getSplitIndex(node *Node) int {
+	size := 0
+	size += nodeHeaderSize
+
+	for i := range node.items {
+		size += node.elementSize(i)
+		if float32(size) > d.minThreshold() && i < len(node.items)-1 {
+			return i + 1
+		}
+	}
+	return -1
+}
+
+func (d *dal) newNode(items []*Item, childNodes []pgnum) *Node {
+	node := NewEmptyNode()
+	node.items = items
+	node.childNodes = childNodes
+	node.pageNum = d.getNextPage()
+	node.dal = d
+	return node
+}
