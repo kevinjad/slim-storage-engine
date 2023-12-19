@@ -1,7 +1,7 @@
 
 # slimDB
 
-A small database written in Golang for experimental and educational purpose.
+A storage engine written in Golang for experimental and educational purpose. Persistent BTree is programmed for minimum disk seek.
 
 
 
