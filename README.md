@@ -37,22 +37,22 @@ run example
 
 ```go
 
-	settings := &Settings{
-		pageSize:       os.Getpagesize(),
-		MinFillPercent: 0.0125,
-		MaxFillPercent: 0.025,
-	}
-	dal, _ := newDal("./slim.db", settings)
+settings := &Settings{
+    pageSize:       os.Getpagesize(),
+    MinFillPercent: 0.0125,
+    MaxFillPercent: 0.025,
+}
+dal, _ := newDal("./slim.db", settings)
 
-	c := newCollection([]byte("collection1"), dal.root)
-	c.dal = dal
+c := newCollection([]byte("collection1"), dal.root)
+c.dal = dal
 
-	_ = c.Put([]byte("Key1"), []byte("Value1"))
-	item, _ := c.Find([]byte("Key1"))
+_ = c.Put([]byte("Key1"), []byte("Value1"))
+item, _ := c.Find([]byte("Key1"))
 
-	fmt.Printf("key is: %s, value is: %s\n", item.key, item.value)
-	dal.writeFreelist()
-	_ = dal.close()
+fmt.Printf("key is: %s, value is: %s\n", item.key, item.value)
+dal.writeFreelist()
+_ = dal.close()
 
 
 ```
