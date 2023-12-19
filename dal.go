@@ -25,7 +25,7 @@ type page struct {
 	data []byte
 }
 
-type dal struct {
+type DataAccessLayer struct {
 	pageSize       int
 	minFillPercent float32
 	maxFillPercent float32
@@ -35,8 +35,8 @@ type dal struct {
 	*freelist
 }
 
-func newDal(path string, options *Settings) (*dal, error) {
-	dal := &dal{
+func newDal(path string, options *Settings) (*DataAccessLayer, error) {
+	dal := &DataAccessLayer{
 		meta:           newEmptyMeta(),
 		pageSize:       options.pageSize,
 		minFillPercent: options.MinFillPercent,
@@ -95,7 +95,7 @@ func newDal(path string, options *Settings) (*dal, error) {
 
 // getSplitIndex should be called when performing rebalance after an item is removed. It checks if a node can spare an
 // element, and if it does then it returns the index when there the split should happen. Otherwise -1 is returned.
-func (d *dal) getSplitIndex(node *Node) int {
+func (d *DataAccessLayer) getSplitIndex(node *Node) int {
 	size := 0
 	size += nodeHeaderSize
 
@@ -112,23 +112,23 @@ func (d *dal) getSplitIndex(node *Node) int {
 	return -1
 }
 
-func (d *dal) maxThreshold() float32 {
+func (d *DataAccessLayer) maxThreshold() float32 {
 	return d.maxFillPercent * float32(d.pageSize)
 }
 
-func (d *dal) isOverPopulated(node *Node) bool {
+func (d *DataAccessLayer) isOverPopulated(node *Node) bool {
 	return float32(node.nodeSize()) > d.maxThreshold()
 }
 
-func (d *dal) minThreshold() float32 {
+func (d *DataAccessLayer) minThreshold() float32 {
 	return d.minFillPercent * float32(d.pageSize)
 }
 
-func (d *dal) isUnderPopulated(node *Node) bool {
+func (d *DataAccessLayer) isUnderPopulated(node *Node) bool {
 	return float32(node.nodeSize()) < d.minThreshold()
 }
 
-func (d *dal) close() error {
+func (d *DataAccessLayer) close() error {
 	if d.file != nil {
 		err := d.file.Close()
 		if err != nil {
@@ -140,13 +140,13 @@ func (d *dal) close() error {
 	return nil
 }
 
-func (d *dal) allocateEmptyPage() *page {
+func (d *DataAccessLayer) allocateEmptyPage() *page {
 	return &page{
 		data: make([]byte, d.pageSize, d.pageSize),
 	}
 }
 
-func (d *dal) readPage(pageNum pgnum) (*page, error) {
+func (d *DataAccessLayer) readPage(pageNum pgnum) (*page, error) {
 	p := d.allocateEmptyPage()
 
 	offset := int(pageNum) * d.pageSize
@@ -157,22 +157,22 @@ func (d *dal) readPage(pageNum pgnum) (*page, error) {
 	return p, err
 }
 
-func (d *dal) writePage(p *page) error {
+func (d *DataAccessLayer) writePage(p *page) error {
 	offset := int64(p.num) * int64(d.pageSize)
 	_, err := d.file.WriteAt(p.data, offset)
 	return err
 }
 
-func (d *dal) newNode(items []*Item, childNodes []pgnum) *Node {
+func (d *DataAccessLayer) newNode(items []*Item, childNodes []pgnum) *Node {
 	node := NewEmptyNode()
 	node.items = items
 	node.childNodes = childNodes
 	node.pageNum = d.getNextPage()
-	node.dal = d
+	node.DataAccessLayer = d
 	return node
 }
 
-func (d *dal) getNode(pageNum pgnum) (*Node, error) {
+func (d *DataAccessLayer) getNode(pageNum pgnum) (*Node, error) {
 	p, err := d.readPage(pageNum)
 	if err != nil {
 		return nil, err
@@ -180,11 +180,11 @@ func (d *dal) getNode(pageNum pgnum) (*Node, error) {
 	node := NewEmptyNode()
 	node.deserialize(p.data)
 	node.pageNum = pageNum
-	node.dal = d
+	node.DataAccessLayer = d
 	return node, nil
 }
 
-func (d *dal) writeNode(n *Node) (*Node, error) {
+func (d *DataAccessLayer) writeNode(n *Node) (*Node, error) {
 	p := d.allocateEmptyPage()
 	if n.pageNum == 0 {
 		p.num = d.getNextPage()
@@ -202,11 +202,11 @@ func (d *dal) writeNode(n *Node) (*Node, error) {
 	return n, nil
 }
 
-func (d *dal) deleteNode(pageNum pgnum) {
+func (d *DataAccessLayer) deleteNode(pageNum pgnum) {
 	d.releasePage(pageNum)
 }
 
-func (d *dal) readFreelist() (*freelist, error) {
+func (d *DataAccessLayer) readFreelist() (*freelist, error) {
 	p, err := d.readPage(d.freelistPage)
 	if err != nil {
 		return nil, err
@@ -217,7 +217,7 @@ func (d *dal) readFreelist() (*freelist, error) {
 	return freelist, nil
 }
 
-func (d *dal) writeFreelist() (*page, error) {
+func (d *DataAccessLayer) writeFreelist() (*page, error) {
 	p := d.allocateEmptyPage()
 	p.num = d.freelistPage
 	d.freelist.serialize(p.data)
@@ -230,7 +230,7 @@ func (d *dal) writeFreelist() (*page, error) {
 	return p, nil
 }
 
-func (d *dal) writeMeta(meta *meta) (*page, error) {
+func (d *DataAccessLayer) writeMeta(meta *meta) (*page, error) {
 	p := d.allocateEmptyPage()
 	p.num = metaPageNum
 	meta.serialize(p.data)
@@ -242,7 +242,7 @@ func (d *dal) writeMeta(meta *meta) (*page, error) {
 	return p, nil
 }
 
-func (d *dal) readMeta() (*meta, error) {
+func (d *DataAccessLayer) readMeta() (*meta, error) {
 	p, err := d.readPage(metaPageNum)
 	if err != nil {
 		return nil, err

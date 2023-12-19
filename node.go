@@ -11,7 +11,7 @@ type Item struct {
 }
 
 type Node struct {
-	*dal
+	*DataAccessLayer
 
 	pageNum    pgnum
 	items      []*Item
@@ -50,7 +50,7 @@ func (n *Node) isLeaf() bool {
 }
 
 func (n *Node) writeNode(node *Node) *Node {
-	node, _ = n.dal.writeNode(node)
+	node, _ = n.DataAccessLayer.writeNode(node)
 	return node
 }
 
@@ -61,17 +61,17 @@ func (n *Node) writeNodes(nodes ...*Node) {
 }
 
 func (n *Node) getNode(pageNum pgnum) (*Node, error) {
-	return n.dal.getNode(pageNum)
+	return n.DataAccessLayer.getNode(pageNum)
 }
 
 // isOverPopulated checks if the node size is bigger than the size of a page.
 func (n *Node) isOverPopulated() bool {
-	return n.dal.isOverPopulated(n)
+	return n.DataAccessLayer.isOverPopulated(n)
 }
 
 // canSpareAnElement checks if the node size is big enough to populate a page after giving away one item.
 func (n *Node) canSpareAnElement() bool {
-	splitIndex := n.dal.getSplitIndex(n)
+	splitIndex := n.DataAccessLayer.getSplitIndex(n)
 	if splitIndex == -1 {
 		return false
 	}
@@ -80,7 +80,7 @@ func (n *Node) canSpareAnElement() bool {
 
 // isUnderPopulated checks if the node size is smaller than the size of a page.
 func (n *Node) isUnderPopulated() bool {
-	return n.dal.isUnderPopulated(n)
+	return n.DataAccessLayer.isUnderPopulated(n)
 }
 
 func (n *Node) serialize(buf []byte) []byte {
@@ -227,7 +227,7 @@ func (n *Node) nodeSize() int {
 // If the key isn't found, we have 2 options. If exact is true, it means we expect findKey
 // to find the key, so a falsey answer. If exact is false, then findKey is used to locate where a new key should be
 // inserted so the position is returned.
-func (n *Node) findKey(key []byte, exact bool) (int, *Node, []int ,error) {
+func (n *Node) findKey(key []byte, exact bool) (int, *Node, []int, error) {
 	ancestorsIndexes := []int{0} // index of root
 	index, node, err := findKeyHelper(n, key, exact, &ancestorsIndexes)
 	if err != nil {
@@ -236,7 +236,7 @@ func (n *Node) findKey(key []byte, exact bool) (int, *Node, []int ,error) {
 	return index, node, ancestorsIndexes, nil
 }
 
-func findKeyHelper(node *Node, key []byte, exact bool, ancestorsIndexes *[]int) (int, *Node ,error) {
+func findKeyHelper(node *Node, key []byte, exact bool, ancestorsIndexes *[]int) (int, *Node, error) {
 	wasFound, index := node.findKeyInNode(key)
 	if wasFound {
 		return index, node, nil
@@ -292,24 +292,25 @@ func (n *Node) addItem(item *Item, insertionIndex int) int {
 // is depicted in the graph below. If it's not a leaf node, then the children has to be moved as well as shown.
 // This may leave the parent unbalanced by having too many items so rebalancing has to be checked for all the ancestors.
 // The split is performed in a for loop to support splitting a node more than once. (Though in practice used only once).
-// 	           n                                        n
-//                 3                                       3,6
-//	      /        \           ------>       /          |          \
-//	   a           modifiedNode            a       modifiedNode     newNode
-//   1,2                 4,5,6,7,8            1,2          4,5         7,8
+//
+//		           n                                        n
+//	                3                                       3,6
+//		      /        \           ------>       /          |          \
+//		   a           modifiedNode            a       modifiedNode     newNode
+//	  1,2                 4,5,6,7,8            1,2          4,5         7,8
 func (n *Node) split(nodeToSplit *Node, nodeToSplitIndex int) {
 	// The first index where min amount of bytes to populate a page is achieved. Then add 1 so it will be split one
 	// index after.
-	splitIndex := nodeToSplit.dal.getSplitIndex(nodeToSplit)
+	splitIndex := nodeToSplit.DataAccessLayer.getSplitIndex(nodeToSplit)
 
 	middleItem := nodeToSplit.items[splitIndex]
 	var newNode *Node
 
 	if nodeToSplit.isLeaf() {
-		newNode = n.writeNode(n.dal.newNode(nodeToSplit.items[splitIndex+1:], []pgnum{}))
+		newNode = n.writeNode(n.DataAccessLayer.newNode(nodeToSplit.items[splitIndex+1:], []pgnum{}))
 		nodeToSplit.items = nodeToSplit.items[:splitIndex]
 	} else {
-		newNode = n.writeNode(n.dal.newNode(nodeToSplit.items[splitIndex+1:], nodeToSplit.childNodes[splitIndex+1:]))
+		newNode = n.writeNode(n.DataAccessLayer.newNode(nodeToSplit.items[splitIndex+1:], nodeToSplit.childNodes[splitIndex+1:]))
 		nodeToSplit.items = nodeToSplit.items[:splitIndex]
 		nodeToSplit.childNodes = nodeToSplit.childNodes[:splitIndex+1]
 	}
@@ -496,6 +497,6 @@ func (n *Node) merge(bNode *Node, bNodeIndex int) error {
 		aNode.childNodes = append(aNode.childNodes, bNode.childNodes...)
 	}
 	n.writeNodes(aNode, n)
-	n.dal.deleteNode(bNode.pageNum)
+	n.DataAccessLayer.deleteNode(bNode.pageNum)
 	return nil
 }

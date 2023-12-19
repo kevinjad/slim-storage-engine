@@ -6,7 +6,7 @@ type Collection struct {
 	name []byte
 	root pgnum
 
-	dal *dal
+	dal *DataAccessLayer
 }
 
 func newCollection(name []byte, root pgnum) *Collection {
@@ -163,10 +163,12 @@ func (c *Collection) Remove(key []byte) error {
 }
 
 // getNodes returns a list of nodes based on their indexes (the breadcrumbs) from the root
-//           p
-//       /       \
-//     a          b
-//  /     \     /   \
+//
+//	         p
+//	     /       \
+//	   a          b
+//	/     \     /   \
+//
 // c       d   e     f
 // For [0,1,0] -> p,b,e
 func (c *Collection) getNodes(indexes []int) ([]*Node, error) {
